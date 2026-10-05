@@ -60,6 +60,17 @@ function flip(){if(index>=deck.length)return;flipped=!flipped;render();}
 function rate(remembered){if(index>=deck.length||!flipped)return false;if(remembered)known++;else missed.push(deck[index]);index++;flipped=false;render();if(index<deck.length)$('card').focus();else $('restart').focus();return true;}
 $('mode').onchange=()=>start(baseDeck());$('card').onclick=flip;$('again').onclick=()=>rate(false);$('known').onclick=()=>rate(true);$('direction').onchange=()=>{flipped=false;render();};$('shuffle').onclick=()=>{if(index>=deck.length){start(randomize(baseDeck()));return;}deck=[...deck.slice(0,index),...randomize(deck.slice(index))];flipped=false;render();};$('retry').onclick=()=>{if(missed.length)start(randomize(missed));};$('restart').onclick=()=>start(randomize(baseDeck()));
 document.addEventListener('keydown',e=>{if(e.target.matches('select,input,textarea')||e.ctrlKey||e.metaKey||e.altKey)return;if(e.code==='Space'){if(e.target.tagName==='BUTTON')return;e.preventDefault();flip();}else if(e.key==='1')rate(false);else if(e.key==='2')rate(true);});
-for(const s of stocks){const tr=document.createElement('tr');for(const value of [s[1],s[0],sectorForTicker[s[0]],s[3]]){const td=document.createElement('td');td.textContent=value;tr.append(td);}$('list').append(tr);}
+let sectorSortDirection=0;
+function renderList(){
+ const rows=[...stocks];
+ if(sectorSortDirection)rows.sort((a,b)=>sectorSortDirection*sectorForTicker[a[0]].localeCompare(sectorForTicker[b[0]],'ja')||a[0].localeCompare(b[0],'en'));
+ $('list').replaceChildren();
+ for(const s of rows){const tr=document.createElement('tr');for(const value of [s[1],s[0],sectorForTicker[s[0]],s[3]]){const td=document.createElement('td');td.textContent=value;tr.append(td);}$('list').append(tr);}
+ $('sectorHeader').setAttribute('aria-sort',sectorSortDirection===1?'ascending':sectorSortDirection===-1?'descending':'none');
+ $('sortLabel').textContent=sectorSortDirection===1?'（昇順）':sectorSortDirection===-1?'（降順）':'（並び替え）';
+ $('sortSector').setAttribute('aria-label',sectorSortDirection===1?'業種で降順に並び替える':'業種で昇順に並び替える');
+}
+$('sortSector').onclick=()=>{sectorSortDirection=sectorSortDirection===1?-1:1;renderList();};
+renderList();
 render();
 if(document.modelContext?.registerTool){const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});const register=t=>{try{Promise.resolve(document.modelContext.registerTool(t,{signal:lifecycle.signal})).catch(()=>{});}catch{}};register({name:'read_current_card',description:'現在の暗記カードと周回進捗を読み取る。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({completed:index>=deck.length,index,total:deck.length,known,review:missed.length,flipped,mode:$('mode').value,card:index<deck.length?deck[index]:null})});register({name:'rate_current_card',description:'答えを表示済みの現在のカードを「覚えた」または「もう一度」と判定して進める。',inputSchema:{type:'object',properties:{remembered:{type:'boolean'}},required:['remembered'],additionalProperties:false},annotations:{readOnlyHint:false},execute:input=>{if(typeof input?.remembered!=='boolean')throw new Error('remembered must be boolean');if(!rate(input.remembered))throw new Error('答えを表示したカードが必要です');return {index,total:deck.length,known,review:missed.length};}});}
